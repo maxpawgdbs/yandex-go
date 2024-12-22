@@ -50,7 +50,14 @@ func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(200)
-		jsonResult, _ := json.Marshal(ResponseOK{Result: fmt.Sprintf("%f", result)})
+		jsonResult, err := json.Marshal(ResponseOK{Result: fmt.Sprintf("%f", result)})
+		if err != nil {
+			w.WriteHeader(500)
+			jsonResult, _ = json.Marshal(ResponseERROR{Error: "Internal server error"})
+			fmt.Fprint(w, string(jsonResult))
+			log.Println("POST", req, string(jsonResult), 500)
+			return
+		}
 		fmt.Fprint(w, string(jsonResult))
 		log.Println("POST", req, string(jsonResult), 200)
 
