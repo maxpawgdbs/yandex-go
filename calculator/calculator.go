@@ -7,6 +7,31 @@ import (
 	"strings"
 )
 
+//	type ExpressionParallel struct {
+//		Expression string
+//		IndexB     int
+//		IndexE     int
+//	}
+//
+//	type ExpressionParallelResult struct {
+//		Result float64
+//		IndexB int
+//		IndexE int
+//	}
+type MoveType struct {
+	Type      string
+	Index     int
+	Prioritet int
+}
+type ExpressionOutput struct {
+	Num   string
+	Index int
+}
+type ExpressionInput struct {
+	Move MoveType
+	Chan chan ExpressionOutput
+}
+
 func NoSpaces(nums string) string {
 	var out []string
 	for _, c := range nums {
@@ -16,7 +41,34 @@ func NoSpaces(nums string) string {
 	}
 	return strings.Join(out, "")
 }
+func FinalCalc(input ExpressionInput, expression []string) {
+	a, _ := strconv.ParseFloat(expression[input.Move.Index-1], 64)
+	b, _ := strconv.ParseFloat(expression[input.Move.Index+1], 64)
+	result := 0.0
+	if input.Move.Type == "+" {
+		result = a + b
+	} else if input.Move.Type == "-" {
+		result = a - b
+	} else if input.Move.Type == "*" {
+		result = a * b
+	} else if input.Move.Type == "/" {
+		if b != 0 {
+			result = a + b
+		} else {
+			input.Chan <- ExpressionOutput{
+				"error",
+				input.Move.Index,
+			}
+			return
+		}
+	}
+	input.Chan <- ExpressionOutput{
+		fmt.Sprintf("%f", result),
+		input.Move.Index,
+	}
+}
 func CalcExpression(expression string) (string, error) {
+	//fmt.Println(expression)
 	expression = NoSpaces(expression)
 	expression = strings.Replace(expression, "/", " / ", -1)
 	expression = strings.Replace(expression, "*", " * ", -1)
@@ -37,6 +89,7 @@ func CalcExpression(expression string) (string, error) {
 	moves := 0
 	prioritet := -1
 	proshloe := -1
+	movesSlice := make([]MoveType, 0)
 	for i, el := range nums {
 		//fmt.Println(el)
 		if strings.Contains("+-/*", el) {
@@ -50,6 +103,11 @@ func CalcExpression(expression string) (string, error) {
 			if prioritet == -1 && strings.Contains("/*", el) {
 				prioritet = i
 			}
+			movesSlice = append(movesSlice, MoveType{
+				Type:      el,
+				Index:     i,
+				Prioritet: prioritet,
+			})
 		} else {
 			for _, c := range el {
 				if !strings.Contains("1234567890.", string(c)) {
@@ -64,6 +122,75 @@ func CalcExpression(expression string) (string, error) {
 			proshloe = 0
 			n++
 		}
+	}
+	if len(movesSlice) > 1 {
+		//fmt.Println(movesSlice)
+		parralelMoves := make([]MoveType, 0)
+		i := 0
+		for {
+			if i >= len(movesSlice) {
+				break
+			}
+			if i == 0 {
+				if movesSlice[i].Prioritet >= movesSlice[i+1].Prioritet {
+					parralelMoves = append(parralelMoves, movesSlice[i])
+					i += 2
+				} else {
+					i++
+				}
+			} else if i == len(movesSlice)-1 {
+				if movesSlice[i].Prioritet >= movesSlice[i-1].Prioritet {
+					parralelMoves = append(parralelMoves, movesSlice[i])
+					i += 2
+				} else {
+					i++
+				}
+			} else {
+				if movesSlice[i-1].Prioritet <= movesSlice[i].Prioritet && movesSlice[i].Prioritet >= movesSlice[i+1].Prioritet {
+					parralelMoves = append(parralelMoves, movesSlice[i])
+					i += 2
+				} else {
+					i++
+				}
+			}
+		}
+		//fmt.Println(parralelMoves)
+		ch := make(chan ExpressionOutput)
+		for _, mov := range parralelMoves {
+			go FinalCalc(ExpressionInput{
+				mov,
+				ch,
+			}, nums)
+		}
+		for i := 0; i < len(parralelMoves); i++ {
+			select {
+			case x, ok := <-ch:
+				if ok {
+					if x.Num == "error" {
+						return "", errors.New("Деление на ноль")
+					}
+					nums[x.Index] = x.Num
+				}
+			}
+		}
+		new_nums := make([]string, 0)
+		if strings.Contains("+-/*", nums[1]) {
+			new_nums = append(new_nums, nums[0])
+		}
+		for i := 1; i+1 < len(nums); i++ {
+			if !strings.Contains("+-/*", nums[i-1]) && !strings.Contains("+-/*", nums[i+1]) {
+				new_nums = append(new_nums, nums[i])
+			} else if strings.Contains("+-/*", nums[i-1]) && strings.Contains("+-/*", nums[i+1]) {
+				new_nums = append(new_nums, nums[i])
+			} else if !strings.Contains("+-/*", nums[i]) && !strings.Contains("+-/*", nums[i-1]) && !strings.Contains("+-/*", nums[i+1]) {
+				new_nums = append(new_nums, nums[i])
+			}
+		}
+		if strings.Contains("+-/*", nums[len(nums)-2]) {
+			new_nums = append(new_nums, nums[len(nums)-1])
+		}
+		fmt.Println(nums, new_nums)
+		return CalcExpression(strings.Join(new_nums, " "))
 	}
 	if n-moves != 1 {
 		return "", errors.New("Невалидное выражание")
@@ -120,6 +247,29 @@ func Calc(expression string) (float64, error) {
 			return Calc(expression[:begin] + res + expression[end+1:])
 		}
 	}
+	//opened := make([]int, 0)
+	//expressionsParallel := make([]ExpressionParallel, 0)
+	//for i, c := range expression {
+	//	if c == '(' {
+	//		opened = append(opened, i)
+	//	} else if c == ')' {
+	//		if len(opened) == 0 {
+	//			return 0, errors.New("Закрывается никогда не открытая скобка")
+	//		}
+	//		if i-opened[len(opened)-1] == 1 {
+	//			return 0, errors.New("Пустое выражение в скобках")
+	//		}
+	//		expressionsParallel = append(expressionsParallel,
+	//			ExpressionParallel{
+	//				Expression: expression[opened[len(opened)]-1 : i],
+	//				IndexB:     opened[len(opened)-1],
+	//				IndexE:     i,
+	//			})
+	//		opened = opened[:len(opened)-1]
+	//	}
+	//}
+	//ch := make(chan ExpressionParallelResult)
+
 	if open > 0 {
 		return 0, errors.New("Скобка открылась, но так и не закрылась")
 	}
@@ -131,8 +281,8 @@ func Calc(expression string) (float64, error) {
 	return out1, nil
 }
 
-func test() {
-	fmt.Println(Calc("2 + 2 + (2 + (2 + (2 + 2)))"))
+func main() {
+	fmt.Println(Calc("2 + 2 + 2 + 2 + 2 + 2 + (2 + (2 + (2 + 2)))"))
 	fmt.Println(Calc("1+1"))
 	fmt.Println(Calc("(2+2)*2"))
 	fmt.Println(Calc("2+2*2"))

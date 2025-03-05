@@ -68,6 +68,8 @@ func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	fmt.Println("Starting Server")
 	http.HandleFunc("/api/v1/calculate", CalculatorHandler)
 	http.ListenAndServe(":8080", nil)
+
 }
