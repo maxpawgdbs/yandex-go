@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/maxpawgdbs/yandex-go/calculator"
 	"github.com/maxpawgdbs/yandex-go/structs"
 	"io/ioutil"
@@ -11,8 +12,8 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"runtime"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -94,29 +95,57 @@ func ExpressionsList(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(result))
 	log.Println(string(result))
 }
-func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
-	el := runtime.NumGoroutine()
-	log.Println(el)
-	if r.Method == http.MethodPost {
-		body, _ := ioutil.ReadAll(r.Body)
-		defer r.Body.Close()
-		var req structs.AgentResponse
-		json.Unmarshal(body, &req)
-		timer := time.NewTimer(time.Duration(req.Operation_time) * time.Millisecond)
-		result := 0.0
-		if req.Operation == "+" {
-			result = req.Arg1 + req.Arg2
-		} else if req.Operation == "-" {
-			result = req.Arg1 - req.Arg2
-		} else if req.Operation == "*" {
-			result = req.Arg1 * req.Arg2
-		} else if req.Operation == "/" {
-			result = req.Arg1 / req.Arg2
+
+var OrkestratorGoroutinesCount int = 0
+var COMPUTING_POWER int = 1000
+var mu sync.Mutex
+
+func Initial() {
+	godotenv.Load(".env")
+	value := os.Getenv("COMPUTING_POWER")
+	if value != "" {
+		intvalue, err := strconv.Atoi(value)
+		if err != nil {
+			fmt.Println("Ошибка в environment variable COMPUTING_POWER")
+			os.Exit(0)
 		}
-		<-timer.C
-		w.WriteHeader(http.StatusOK)
-		out, _ := json.Marshal(structs.AgentResult{result})
-		fmt.Fprint(w, string(out))
+		COMPUTING_POWER = intvalue
+	} else {
+		COMPUTING_POWER = 1000
 	}
-	log.Println(el, runtime.NumGoroutine())
+}
+func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodPost {
+		for {
+			if OrkestratorGoroutinesCount < COMPUTING_POWER {
+				mu.Lock()
+				OrkestratorGoroutinesCount++
+				mu.Unlock()
+				body, _ := ioutil.ReadAll(r.Body)
+				defer r.Body.Close()
+				var req structs.AgentResponse
+				json.Unmarshal(body, &req)
+				timer := time.NewTimer(time.Duration(req.Operation_time) * time.Millisecond)
+				result := 0.0
+				if req.Operation == "+" {
+					result = req.Arg1 + req.Arg2
+				} else if req.Operation == "-" {
+					result = req.Arg1 - req.Arg2
+				} else if req.Operation == "*" {
+					result = req.Arg1 * req.Arg2
+				} else if req.Operation == "/" {
+					result = req.Arg1 / req.Arg2
+				}
+				<-timer.C
+				w.WriteHeader(http.StatusOK)
+				out, _ := json.Marshal(structs.AgentResult{result})
+				fmt.Fprint(w, string(out))
+				mu.Lock()
+				OrkestratorGoroutinesCount--
+				mu.Unlock()
+				break
+			}
+		}
+	}
 }
