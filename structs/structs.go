@@ -17,3 +17,13 @@ type ResponseResult struct {
 type ResponseExpression struct {
 	Expression ResponseResult `json:"expression"`
 }
+type AgentResponse struct {
+	Arg1           float64 `json:"arg1"`
+	Arg2           float64 `json:"arg2"`
+	Operation      string  `json:"operation"`
+	Operation_time int     `json:"operation_time"`
+}
+
+type AgentResult struct {
+	Result float64 `json:"result"`
+}

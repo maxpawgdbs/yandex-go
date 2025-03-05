@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
@@ -91,4 +92,27 @@ func ExpressionsList(w http.ResponseWriter, r *http.Request) {
 	result, _ := json.Marshal(map[string][]structs.ResponseResult{"expressions": out})
 	fmt.Fprint(w, string(result))
 	log.Println(string(result))
+}
+func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		body, _ := ioutil.ReadAll(r.Body)
+		defer r.Body.Close()
+		var req structs.AgentResponse
+		json.Unmarshal(body, &req)
+		timer := time.NewTimer(time.Duration(req.Operation_time) * time.Millisecond)
+		result := 0.0
+		if req.Operation == "+" {
+			result = req.Arg1 + req.Arg2
+		} else if req.Operation == "-" {
+			result = req.Arg1 - req.Arg2
+		} else if req.Operation == "*" {
+			result = req.Arg1 * req.Arg2
+		} else if req.Operation == "/" {
+			result = req.Arg1 / req.Arg2
+		}
+		<-timer.C
+		w.WriteHeader(http.StatusOK)
+		out, _ := json.Marshal(structs.AgentResult{result})
+		fmt.Fprint(w, string(out))
+	}
 }

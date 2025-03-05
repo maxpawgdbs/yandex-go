@@ -1,11 +1,14 @@
 package calculator
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/maxpawgdbs/yandex-go/structs"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -54,24 +57,35 @@ func NoSpaces(nums string) string {
 func FinalCalc(input ExpressionInput, expression []string) {
 	a, _ := strconv.ParseFloat(expression[input.Move.Index-1], 64)
 	b, _ := strconv.ParseFloat(expression[input.Move.Index+1], 64)
-	result := 0.0
+	var result structs.AgentResult
+	url := "http://localhost:8080/internal/task"
+
 	if input.Move.Type == "+" {
-		timer := time.NewTimer(time.Duration(TIME_ADDITION_MS) * time.Millisecond)
-		result = a + b
-		<-timer.C
+
+		data, _ := json.Marshal(structs.AgentResponse{a, b, input.Move.Type, TIME_ADDITION_MS})
+		resp, _ := http.Post(url, "application/json", bytes.NewBuffer(data))
+		body, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		json.Unmarshal(body, &result)
 	} else if input.Move.Type == "-" {
-		timer := time.NewTimer(time.Duration(TIME_SUBTRACTION_MS) * time.Millisecond)
-		result = a - b
-		<-timer.C
+		data, _ := json.Marshal(structs.AgentResponse{a, b, input.Move.Type, TIME_SUBTRACTION_MS})
+		resp, _ := http.Post(url, "application/json", bytes.NewBuffer(data))
+		body, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		json.Unmarshal(body, &result)
 	} else if input.Move.Type == "*" {
-		timer := time.NewTimer(time.Duration(TIME_MULTIPLICATIONS_MS) * time.Millisecond)
-		result = a * b
-		<-timer.C
+		data, _ := json.Marshal(structs.AgentResponse{a, b, input.Move.Type, TIME_MULTIPLICATIONS_MS})
+		resp, _ := http.Post(url, "application/json", bytes.NewBuffer(data))
+		body, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		json.Unmarshal(body, &result)
 	} else if input.Move.Type == "/" {
 		if b != 0 {
-			timer := time.NewTimer(time.Duration(TIME_DIVISIONS_MS) * time.Millisecond)
-			result = a / b
-			<-timer.C
+			data, _ := json.Marshal(structs.AgentResponse{a, b, input.Move.Type, TIME_DIVISIONS_MS})
+			resp, _ := http.Post(url, "application/json", bytes.NewBuffer(data))
+			body, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			json.Unmarshal(body, &result)
 		} else {
 			input.Chan <- ExpressionOutput{
 				"error",
