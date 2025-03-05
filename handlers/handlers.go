@@ -3,21 +3,16 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/maxpawgdbs/yandex-go/calculator"
+	"github.com/maxpawgdbs/yandex-go/structs"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
+	"os"
+	"strconv"
 )
-
-type Request struct {
-	Expression string `json:"expression"`
-}
-type ResponseOK struct {
-	Result string `json:"result"`
-}
-type ResponseERROR struct {
-	Error string `json:"error"`
-}
 
 func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
@@ -27,42 +22,54 @@ func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer r.Body.Close()
-		var req Request
+		var req structs.Request
 		err = json.Unmarshal(body, &req)
-		result, err := calculator.Calc(req.Expression)
+		//result, err := calculator.Calc(req.Expression)
 
-		defer func() {
-			if r := recover(); r != nil {
-				w.WriteHeader(500)
-				jsonResult, _ := json.Marshal(ResponseERROR{Error: "Internal server error"})
-				fmt.Fprint(w, string(jsonResult))
-				log.Println("POST", req, string(jsonResult), 500)
-				return
-			}
-		}()
+		id := rand.Int()
 
-		if err != nil {
-			w.WriteHeader(422)
-			jsonResult, _ := json.Marshal(ResponseERROR{Error: "Expression is not valid"})
-			fmt.Fprint(w, string(jsonResult))
-			log.Println("POST", req, string(jsonResult), 422)
-			return
-		}
+		jsonResult, _ := json.Marshal(structs.ResponseResult{id, "proccessing", 0})
+		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 
-		w.WriteHeader(200)
-		jsonResult, err := json.Marshal(ResponseOK{Result: fmt.Sprintf("%f", result)})
-		if err != nil {
-			w.WriteHeader(500)
-			jsonResult, _ = json.Marshal(ResponseERROR{Error: "Internal server error"})
-			fmt.Fprint(w, string(jsonResult))
-			log.Println("POST", req, string(jsonResult), 500)
-			return
-		}
-		fmt.Fprint(w, string(jsonResult))
-		log.Println("POST", req, string(jsonResult), 200)
+		go calculator.Calc(req.Expression, id)
+
+		jsonOut, _ := json.Marshal(structs.ResponseOK{Id: id})
+		fmt.Fprint(w, string(jsonOut))
+		log.Println("POST", req, string(jsonOut), 201)
 
 	} else {
 		w.WriteHeader(405)
 		log.Println(r.Method, 405)
 	}
+}
+func ExpressionAnswer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id_str := vars["id"]
+	id, err := strconv.Atoi(id_str)
+	if err != nil {
+		w.WriteHeader(404)
+		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "value error", 404}})
+		fmt.Fprint(w, string(jsonOut))
+		log.Println(string(jsonOut))
+		return
+	}
+	_, err = os.Stat(fmt.Sprintf("database/%d.json", id))
+	if os.IsNotExist(err) {
+		w.WriteHeader(404)
+		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "not found", 404}})
+		fmt.Fprint(w, string(jsonOut))
+		log.Println(string(jsonOut))
+		return
+	}
+	data, err := ioutil.ReadFile(fmt.Sprintf("database/%d.json", id))
+	if err != nil {
+		w.WriteHeader(500)
+		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "some errors", 500}})
+		fmt.Fprint(w, string(jsonOut))
+		log.Println(string(jsonOut))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, fmt.Sprintf("{\"expression\": %s", string(data)))
+	log.Println(string(data))
 }

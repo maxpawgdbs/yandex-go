@@ -1,9 +1,11 @@
 package calculator
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/maxpawgdbs/yandex-go/structs"
 	"os"
 	"strconv"
 	"strings"
@@ -111,7 +113,8 @@ func CalcExpression(expression string) (string, error) {
 		if strings.Contains("+-/*", el) {
 			if proshloe != -1 {
 				if proshloe == 1 {
-					return "", errors.New("Невалидное выражение")
+					fmt.Println(nums)
+					return "", errors.New("Выражение начианется  с действия")
 				}
 			}
 			moves++
@@ -132,7 +135,7 @@ func CalcExpression(expression string) (string, error) {
 			}
 			if proshloe != -1 {
 				if proshloe == 0 {
-					return "", errors.New("Невалидное выражение")
+					return "", errors.New("Действия и циркы в странном порядке")
 				}
 			}
 			proshloe = 0
@@ -209,16 +212,24 @@ func CalcExpression(expression string) (string, error) {
 		return CalcExpression(strings.Join(new_nums, " "))
 	}
 	if n-moves != 1 {
-		return "", errors.New("Невалидное выражание")
+		return "", errors.New("Чёт число символов не то")
 	}
 	out := 0.0
 	if prioritet != -1 {
 		a, _ := strconv.ParseFloat(nums[prioritet-1], 64)
 		b, _ := strconv.ParseFloat(nums[prioritet+1], 64)
 		if nums[prioritet] == "*" {
+			timer := time.NewTimer(time.Duration(TIME_MULTIPLICATIONS_MS) * time.Millisecond)
 			out = a * b
+			<-timer.C
 		} else {
-			out = a / b
+			if b != 0 {
+				timer := time.NewTimer(time.Duration(TIME_DIVISIONS_MS) * time.Millisecond)
+				out = a / b
+				<-timer.C
+			} else {
+				return "", errors.New("ДЕЛЕНИЕ НА НОЛЬ ХАХАХХА")
+			}
 		}
 		if len(nums)-2 != 1 {
 			return CalcExpression(fmt.Sprintf("%s%f%s", strings.Join(nums[:prioritet-1], ""), out, strings.Join(nums[prioritet+2:], "")))
@@ -227,9 +238,13 @@ func CalcExpression(expression string) (string, error) {
 		a, _ := strconv.ParseFloat(nums[0], 64)
 		b, _ := strconv.ParseFloat(nums[2], 64)
 		if nums[1] == "+" {
+			timer := time.NewTimer(time.Duration(TIME_ADDITION_MS) * time.Millisecond)
 			out = a + b
+			<-timer.C
 		} else {
+			timer := time.NewTimer(time.Duration(TIME_SUBTRACTION_MS) * time.Millisecond)
 			out = a - b
+			<-timer.C
 		}
 		if len(nums)-2 != 1 {
 			return CalcExpression(fmt.Sprintf("%f%s", out, strings.Join(nums[3:], "")))
@@ -238,7 +253,7 @@ func CalcExpression(expression string) (string, error) {
 	return fmt.Sprintf("%f", out), nil
 }
 
-func Calc(expression string) (float64, error) {
+func Calc(expression string, id int) (float64, error) {
 	//fmt.Println(expression)
 	open := 0
 	begin := -1
@@ -251,54 +266,44 @@ func Calc(expression string) (float64, error) {
 			open--
 			end = i
 			if open == -1 {
+				jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Закрывается никогда не открытая скобка", 0})
+				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 				return 0, errors.New("Закрывается никогда не открытая скобка")
 			}
 			if end-begin == 1 {
+				jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Пустое выражение в скобках", 0})
+				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 				return 0, errors.New("Пустое выражение в скобках")
 			}
 			res, err := CalcExpression(expression[begin+1 : end])
 			if err != nil {
+				jsonResult, _ := json.Marshal(structs.ResponseResult{id, fmt.Sprintf("%s", err), 0})
+				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 				return 0, err
 			}
-			return Calc(expression[:begin] + res + expression[end+1:])
+			return Calc(expression[:begin]+res+expression[end+1:], id)
 		}
 	}
-	//opened := make([]int, 0)
-	//expressionsParallel := make([]ExpressionParallel, 0)
-	//for i, c := range expression {
-	//	if c == '(' {
-	//		opened = append(opened, i)
-	//	} else if c == ')' {
-	//		if len(opened) == 0 {
-	//			return 0, errors.New("Закрывается никогда не открытая скобка")
-	//		}
-	//		if i-opened[len(opened)-1] == 1 {
-	//			return 0, errors.New("Пустое выражение в скобках")
-	//		}
-	//		expressionsParallel = append(expressionsParallel,
-	//			ExpressionParallel{
-	//				Expression: expression[opened[len(opened)]-1 : i],
-	//				IndexB:     opened[len(opened)-1],
-	//				IndexE:     i,
-	//			})
-	//		opened = opened[:len(opened)-1]
-	//	}
-	//}
-	//ch := make(chan ExpressionParallelResult)
 
 	if open > 0 {
+		jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Скобка открылась, но так и не закрылась", 0})
+		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 		return 0, errors.New("Скобка открылась, но так и не закрылась")
 	}
 	out, err := CalcExpression(expression)
 	if err != nil {
+		jsonResult, _ := json.Marshal(structs.ResponseResult{id, fmt.Sprintf("%s", err), 0})
+		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 		return 0, err
 	}
 	out1, _ := strconv.ParseFloat(out, 64)
+	jsonResult, _ := json.Marshal(structs.ResponseResult{id, "ok", out1})
+	os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
 	return out1, nil
 }
 
 func Initial() {
-	godotenv.Load("../.env")
+	godotenv.Load(".env")
 	value := os.Getenv("TIME_ADDITION_MS")
 	if value != "" {
 		intvalue, err := strconv.Atoi(value)
@@ -354,9 +359,9 @@ func Initial() {
 }
 
 func test() {
-	fmt.Println(Calc("2 + 2 + 2 + 2 + 2 + 2 + (2 + (2 + (2 + 2)))"))
-	fmt.Println(Calc("1+1"))
-	fmt.Println(Calc("(2+2)*2"))
-	fmt.Println(Calc("2+2*2"))
-	fmt.Println(Calc("1+1*"))
+	fmt.Println(Calc("2 + 2 + 2 + 2 + 2 + 2 + (2 + (2 + (2 + 2)))", 0))
+	fmt.Println(Calc("1+1", 0))
+	fmt.Println(Calc("(2+2)*2", 0))
+	fmt.Println(Calc("2+2*2", 0))
+	fmt.Println(Calc("1+1*", 0))
 }
