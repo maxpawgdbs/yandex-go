@@ -95,12 +95,11 @@ func FinalCalc(input ExpressionInput, expression []string) {
 		}
 	}
 	input.Chan <- ExpressionOutput{
-		fmt.Sprintf("%f", result),
+		fmt.Sprintf("%f", result.Result),
 		input.Move.Index,
 	}
 }
 func CalcExpression(expression string) (string, error) {
-	//fmt.Println(expression)
 	expression = NoSpaces(expression)
 	expression = strings.Replace(expression, "/", " / ", -1)
 	expression = strings.Replace(expression, "*", " * ", -1)
@@ -149,7 +148,7 @@ func CalcExpression(expression string) (string, error) {
 			}
 			if proshloe != -1 {
 				if proshloe == 0 {
-					return "", errors.New("Действия и циркы в странном порядке")
+					return "", errors.New("Действия и цифры в странном порядке")
 				}
 			}
 			proshloe = 0
@@ -268,7 +267,6 @@ func CalcExpression(expression string) (string, error) {
 }
 
 func Calc(expression string, id int) (float64, error) {
-	//fmt.Println(expression)
 	open := 0
 	begin := -1
 	end := -1

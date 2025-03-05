@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -94,6 +95,8 @@ func ExpressionsList(w http.ResponseWriter, r *http.Request) {
 	log.Println(string(result))
 }
 func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
+	el := runtime.NumGoroutine()
+	log.Println(el)
 	if r.Method == http.MethodPost {
 		body, _ := ioutil.ReadAll(r.Body)
 		defer r.Body.Close()
@@ -115,4 +118,5 @@ func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
 		out, _ := json.Marshal(structs.AgentResult{result})
 		fmt.Fprint(w, string(out))
 	}
+	log.Println(el, runtime.NumGoroutine())
 }
