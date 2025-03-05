@@ -3,8 +3,11 @@ package calculator
 import (
 	"errors"
 	"fmt"
+	"github.com/joho/godotenv"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //	type ExpressionParallel struct {
@@ -32,6 +35,11 @@ type ExpressionInput struct {
 	Chan chan ExpressionOutput
 }
 
+var TIME_ADDITION_MS int = 0
+var TIME_SUBTRACTION_MS int = 0
+var TIME_MULTIPLICATIONS_MS int = 0
+var TIME_DIVISIONS_MS int = 0
+
 func NoSpaces(nums string) string {
 	var out []string
 	for _, c := range nums {
@@ -46,14 +54,22 @@ func FinalCalc(input ExpressionInput, expression []string) {
 	b, _ := strconv.ParseFloat(expression[input.Move.Index+1], 64)
 	result := 0.0
 	if input.Move.Type == "+" {
+		timer := time.NewTimer(time.Duration(TIME_ADDITION_MS) * time.Millisecond)
 		result = a + b
+		<-timer.C
 	} else if input.Move.Type == "-" {
+		timer := time.NewTimer(time.Duration(TIME_SUBTRACTION_MS) * time.Millisecond)
 		result = a - b
+		<-timer.C
 	} else if input.Move.Type == "*" {
+		timer := time.NewTimer(time.Duration(TIME_MULTIPLICATIONS_MS) * time.Millisecond)
 		result = a * b
+		<-timer.C
 	} else if input.Move.Type == "/" {
 		if b != 0 {
-			result = a + b
+			timer := time.NewTimer(time.Duration(TIME_DIVISIONS_MS) * time.Millisecond)
+			result = a / b
+			<-timer.C
 		} else {
 			input.Chan <- ExpressionOutput{
 				"error",
@@ -189,7 +205,7 @@ func CalcExpression(expression string) (string, error) {
 		if strings.Contains("+-/*", nums[len(nums)-2]) {
 			new_nums = append(new_nums, nums[len(nums)-1])
 		}
-		fmt.Println(nums, new_nums)
+		//fmt.Println(nums, new_nums)
 		return CalcExpression(strings.Join(new_nums, " "))
 	}
 	if n-moves != 1 {
@@ -281,7 +297,63 @@ func Calc(expression string) (float64, error) {
 	return out1, nil
 }
 
-func main() {
+func Initial() {
+	godotenv.Load("../.env")
+	value := os.Getenv("TIME_ADDITION_MS")
+	if value != "" {
+		intvalue, err := strconv.Atoi(value)
+		if err != nil {
+			fmt.Println("Ошибка в environment variable TIME_ADDITION_MS")
+			os.Exit(0)
+		}
+		TIME_ADDITION_MS = intvalue
+	} else {
+		TIME_ADDITION_MS = 0
+	}
+
+	value = os.Getenv("TIME_SUBTRACTION_MS")
+	if value != "" {
+		intvalue, err := strconv.Atoi(value)
+		if err != nil {
+			fmt.Println("Ошибка в environment variable TIME_SUBTRACTION_MS")
+			os.Exit(0)
+		}
+		TIME_SUBTRACTION_MS = intvalue
+	} else {
+		TIME_SUBTRACTION_MS = 0
+	}
+
+	value = os.Getenv("TIME_MULTIPLICATIONS_MS")
+	if value != "" {
+		intvalue, err := strconv.Atoi(value)
+		if err != nil {
+			fmt.Println("Ошибка в environment variable TIME_MULTIPLICATIONS_MS")
+			os.Exit(0)
+		}
+		TIME_MULTIPLICATIONS_MS = intvalue
+	} else {
+		TIME_MULTIPLICATIONS_MS = 0
+	}
+
+	value = os.Getenv("TIME_DIVISIONS_MS")
+	if value != "" {
+		intvalue, err := strconv.Atoi(value)
+		if err != nil {
+			fmt.Println("Ошибка в environment variable TIME_DIVISIONS_MS")
+			os.Exit(0)
+		}
+		TIME_DIVISIONS_MS = intvalue
+	} else {
+		TIME_DIVISIONS_MS = 0
+	}
+	fmt.Printf("TIME_ADDITION_MS: %d\n", TIME_ADDITION_MS)
+	fmt.Printf("TIME_SUBTRACTION_MS: %d\n", TIME_SUBTRACTION_MS)
+	fmt.Printf("TIME_MULTIPLICATIONS_MS: %d\n", TIME_MULTIPLICATIONS_MS)
+	fmt.Printf("TIME_DIVISIONS_MS: %d\n", TIME_DIVISIONS_MS)
+
+}
+
+func test() {
 	fmt.Println(Calc("2 + 2 + 2 + 2 + 2 + 2 + (2 + (2 + (2 + 2)))"))
 	fmt.Println(Calc("1+1"))
 	fmt.Println(Calc("(2+2)*2"))
