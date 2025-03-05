@@ -73,3 +73,22 @@ func ExpressionAnswer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, fmt.Sprintf("{\"expression\": %s", string(data)))
 	log.Println(string(data))
 }
+func ExpressionsList(w http.ResponseWriter, r *http.Request) {
+	files, err := os.ReadDir("database")
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprint(w, " чёто с бд сорян не будет кина")
+		return
+	}
+	out := make([]structs.ResponseResult, 0)
+	for _, file := range files {
+		var structura structs.ResponseResult
+		data, _ := ioutil.ReadFile(fmt.Sprintf("database/%s", file.Name()))
+		json.Unmarshal(data, &structura)
+		out = append(out, structura)
+	}
+	w.WriteHeader(http.StatusOK)
+	result, _ := json.Marshal(map[string][]structs.ResponseResult{"expressions": out})
+	fmt.Fprint(w, string(result))
+	log.Println(string(result))
+}

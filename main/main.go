@@ -21,5 +21,6 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/api/v1/calculate", handlers.CalculatorHandler)
 	r.HandleFunc("/api/v1/expressions/{id}", handlers.ExpressionAnswer)
+	r.HandleFunc("/api/v1/expressions", handlers.ExpressionsList)
 	http.ListenAndServe(":8080", r)
 }
