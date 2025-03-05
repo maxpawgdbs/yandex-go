@@ -15,7 +15,9 @@ curl --location http://localhost:8080/api/v1/calculate --header 'Content-Type: a
 curl --location http://localhost:8080/api/v1/expressions/<id>
 {"id": <id>, "status": "ok", "result": 6}
 ```
+## Структура
 
+![img_1.png](img_1.png)
 
 
 
