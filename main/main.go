@@ -63,21 +63,15 @@ CREATE TABLE IF NOT EXISTS expressions (
 
 	log.Println("Starting Server")
 	r := mux.NewRouter()
-	// r.HandleFunc("/api/v1/calculate", handlers.CalculatorHandler)
-	// r.HandleFunc("/api/v1/expressions/{id}", handlers.ExpressionAnswer)
-	// r.HandleFunc("/api/v1/expressions", handlers.ExpressionsList)
-	// r.HandleFunc("/internal/task", handlers.OrkestratorHandler)
 	r.HandleFunc("/api/v1/register", auth.RegisterHandler).Methods("POST")
 	r.HandleFunc("/api/v1/login", auth.LoginHandler).Methods("POST")
 
-	// Protected routes (требуют JWT)
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.Use(auth.JwtMiddleware)
 	api.HandleFunc("/calculate", handlers.CalculatorHandler)
 	api.HandleFunc("/expressions/{id}", handlers.ExpressionAnswer)
 	api.HandleFunc("/expressions", handlers.ExpressionsList)
 
-	// Internal
 	r.HandleFunc("/internal/task", handlers.OrkestratorHandler)
 
 	http.ListenAndServe(":8080", r)

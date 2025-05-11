@@ -37,6 +37,9 @@ var TIME_SUBTRACTION_MS int = 0
 var TIME_MULTIPLICATIONS_MS int = 0
 var TIME_DIVISIONS_MS int = 0
 
+var TaskURL = "http://localhost:8080/internal/task"
+
+
 func NoSpaces(nums string) string {
 	var out []string
 	for _, c := range nums {
@@ -50,7 +53,7 @@ func FinalCalc(input ExpressionInput, expression []string) {
 	a, _ := strconv.ParseFloat(expression[input.Move.Index-1], 64)
 	b, _ := strconv.ParseFloat(expression[input.Move.Index+1], 64)
 	var result structs.AgentResult
-	url := "http://localhost:8080/internal/task"
+	url := TaskURL
 
 	if input.Move.Type == "+" {
 
