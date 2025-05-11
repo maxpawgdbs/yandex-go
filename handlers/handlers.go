@@ -106,19 +106,6 @@ func ExpressionAnswer(w http.ResponseWriter, r *http.Request) {
 }
 
 func ExpressionsList(w http.ResponseWriter, r *http.Request) {
-	// files, err := os.ReadDir("database")
-	// if err != nil {
-	// 	w.WriteHeader(500)
-	// 	fmt.Fprint(w, " чёто с бд сорян не будет кина")
-	// 	return
-	// }
-	// out := make([]structs.ResponseResult, 0)
-	// for _, file := range files {
-	// 	var structura structs.ResponseResult
-	// 	data, _ := ioutil.ReadFile(fmt.Sprintf("database/%s", file.Name()))
-	// 	json.Unmarshal(data, &structura)
-	// 	out = append(out, structura)
-	// }
 	out := make([]structs.ResponseResult, 0)
 	conn, err := sql.Open("sqlite3", "database/database.sql")
 	if err != nil {

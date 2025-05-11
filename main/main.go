@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/maxpawgdbs/yandex-go/calculator"
 	"github.com/maxpawgdbs/yandex-go/handlers"
+	"github.com/maxpawgdbs/yandex-go/auth"
 	"log"
 	"net/http"
 	"os"
@@ -30,6 +31,7 @@ func main() {
 		conn, err = sql.Open("sqlite3", "database/database.sql")
 	}
 	defer conn.Close()
+	
 
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
@@ -57,12 +59,26 @@ CREATE TABLE IF NOT EXISTS expressions (
         log.Fatalf("failed to init schema: %v", err)
     }
 
+	auth.InitAuth(conn)
 
 	log.Println("Starting Server")
 	r := mux.NewRouter()
-	r.HandleFunc("/api/v1/calculate", handlers.CalculatorHandler)
-	r.HandleFunc("/api/v1/expressions/{id}", handlers.ExpressionAnswer)
-	r.HandleFunc("/api/v1/expressions", handlers.ExpressionsList)
+	// r.HandleFunc("/api/v1/calculate", handlers.CalculatorHandler)
+	// r.HandleFunc("/api/v1/expressions/{id}", handlers.ExpressionAnswer)
+	// r.HandleFunc("/api/v1/expressions", handlers.ExpressionsList)
+	// r.HandleFunc("/internal/task", handlers.OrkestratorHandler)
+	r.HandleFunc("/api/v1/register", auth.RegisterHandler).Methods("POST")
+	r.HandleFunc("/api/v1/login", auth.LoginHandler).Methods("POST")
+
+	// Protected routes (требуют JWT)
+	api := r.PathPrefix("/api/v1").Subrouter()
+	api.Use(auth.JwtMiddleware)
+	api.HandleFunc("/calculate", handlers.CalculatorHandler)
+	api.HandleFunc("/expressions/{id}", handlers.ExpressionAnswer)
+	api.HandleFunc("/expressions", handlers.ExpressionsList)
+
+	// Internal
 	r.HandleFunc("/internal/task", handlers.OrkestratorHandler)
+
 	http.ListenAndServe(":8080", r)
 }

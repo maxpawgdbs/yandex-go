@@ -27,3 +27,8 @@ type AgentResponse struct {
 type AgentResult struct {
 	Result float64 `json:"result"`
 }
+
+type User struct {
+    Login    string `json:"login"`
+    Password string `json:"password"`
+}
