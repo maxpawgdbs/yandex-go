@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,8 +33,25 @@ func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 
 		id := rand.Int()
 
-		jsonResult, _ := json.Marshal(structs.ResponseResult{id, "proccessing", 0})
-		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
+		// jsonResult, _ := json.Marshal(structs.ResponseResult{id, "proccessing", 0})
+		// os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
+
+		conn, err := sql.Open("sqlite3", "database/database.sql")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer conn.Close()
+
+		_, err = conn.Exec(`
+		INSERT INTO expressions(id, status, result)
+		VALUES(?, ?, ?)
+		`, fmt.Sprintf("%d", id), "proccessing", "0")
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
 		go calculator.Calc(req.Expression, id)
 
@@ -45,6 +64,7 @@ func CalculatorHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, 405)
 	}
 }
+
 func ExpressionAnswer(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id_str := vars["id"]
@@ -56,40 +76,74 @@ func ExpressionAnswer(w http.ResponseWriter, r *http.Request) {
 		log.Println(string(jsonOut))
 		return
 	}
-	_, err = os.Stat(fmt.Sprintf("database/%d.json", id))
-	if os.IsNotExist(err) {
-		w.WriteHeader(404)
-		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "not found", 404}})
-		fmt.Fprint(w, string(jsonOut))
-		log.Println(string(jsonOut))
-		return
-	}
-	data, err := ioutil.ReadFile(fmt.Sprintf("database/%d.json", id))
+	conn, err := sql.Open("sqlite3", "database/database.sql")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	defer conn.Close()
+	data := structs.ResponseResult{}
+	row := conn.QueryRow(`
+		SELECT * FROM expressions
+		WHERE id = ?
+	`, fmt.Sprintf("%d", id))
+	err = row.Scan(&data.Id, &data.Status, &data.Result)
+
 	if err != nil {
-		w.WriteHeader(500)
-		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "some errors", 500}})
-		fmt.Fprint(w, string(jsonOut))
-		log.Println(string(jsonOut))
+		log.Println(err)
+		jsonOut, _ := json.Marshal(map[string]structs.ResponseResult{"expression": structs.ResponseResult{id, "not found", 404}})
+	    fmt.Fprint(w, string(jsonOut))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, fmt.Sprintf("{\"expression\": %s", string(data)))
-	log.Println(string(data))
-}
-func ExpressionsList(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir("database")
+	out, err := json.Marshal(data)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprint(w, " чёто с бд сорян не будет кина")
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Fprint(w, string(out))
+	log.Println(string(out))
+}
+
+func ExpressionsList(w http.ResponseWriter, r *http.Request) {
+	// files, err := os.ReadDir("database")
+	// if err != nil {
+	// 	w.WriteHeader(500)
+	// 	fmt.Fprint(w, " чёто с бд сорян не будет кина")
+	// 	return
+	// }
+	// out := make([]structs.ResponseResult, 0)
+	// for _, file := range files {
+	// 	var structura structs.ResponseResult
+	// 	data, _ := ioutil.ReadFile(fmt.Sprintf("database/%s", file.Name()))
+	// 	json.Unmarshal(data, &structura)
+	// 	out = append(out, structura)
+	// }
 	out := make([]structs.ResponseResult, 0)
-	for _, file := range files {
-		var structura structs.ResponseResult
-		data, _ := ioutil.ReadFile(fmt.Sprintf("database/%s", file.Name()))
-		json.Unmarshal(data, &structura)
-		out = append(out, structura)
+	conn, err := sql.Open("sqlite3", "database/database.sql")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+	defer conn.Close()
+	rows, err := conn.Query(`
+		SELECT * FROM expressions
+	`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var input structs.ResponseResult
+		err = rows.Scan(&input.Id, &input.Status, &input.Result)
+		if err != nil {
+            http.Error(w, fmt.Sprintf("scan error: %v", err), http.StatusInternalServerError)
+            return
+        }
+		out = append(out, input)
+	}
+	
 	w.WriteHeader(http.StatusOK)
 	result, _ := json.Marshal(map[string][]structs.ResponseResult{"expressions": out})
 	fmt.Fprint(w, string(result))
@@ -114,8 +168,8 @@ func Initial() {
 		COMPUTING_POWER = 1000
 	}
 }
-func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
 
+func OrkestratorHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		for {
 			if OrkestratorGoroutinesCount < COMPUTING_POWER {

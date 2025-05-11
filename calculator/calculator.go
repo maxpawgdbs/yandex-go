@@ -2,30 +2,22 @@ package calculator
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/joho/godotenv"
-	"github.com/maxpawgdbs/yandex-go/structs"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/maxpawgdbs/yandex-go/structs"
 )
 
-//	type ExpressionParallel struct {
-//		Expression string
-//		IndexB     int
-//		IndexE     int
-//	}
-//
-//	type ExpressionParallelResult struct {
-//		Result float64
-//		IndexB int
-//		IndexE int
-//	}
 type MoveType struct {
 	Type      string
 	Index     int
@@ -270,6 +262,11 @@ func Calc(expression string, id int) (float64, error) {
 	open := 0
 	begin := -1
 	end := -1
+	conn, err := sql.Open("sqlite3", "database/database.sql")
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
 	for i, c := range expression {
 		if c == '(' {
 			open++
@@ -278,39 +275,70 @@ func Calc(expression string, id int) (float64, error) {
 			open--
 			end = i
 			if open == -1 {
-				jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Закрывается никогда не открытая скобка", 0})
-				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
-				return 0, errors.New("Закрывается никогда не открытая скобка")
+				_, err = conn.Exec(`
+					UPDATE expressions
+					SET status = "error", result = 0
+					WHERE id = ?
+				`, fmt.Sprintf("%d", id))
+				if err != nil {
+					return 0, err
+				}
 			}
 			if end-begin == 1 {
-				jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Пустое выражение в скобках", 0})
-				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
-				return 0, errors.New("Пустое выражение в скобках")
+				_, err = conn.Exec(`
+					UPDATE expressions
+					SET status = "error", result = 0
+					WHERE id = ?
+				`, fmt.Sprintf("%d", id))
+				if err != nil {
+					return 0, err
+				}
 			}
 			res, err := CalcExpression(expression[begin+1 : end])
 			if err != nil {
-				jsonResult, _ := json.Marshal(structs.ResponseResult{id, fmt.Sprintf("%s", err), 0})
-				os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
-				return 0, err
+				_, err = conn.Exec(`
+					UPDATE expressions
+					SET status = "error", result = 0
+					WHERE id = ?
+				`, fmt.Sprintf("%d", id))
+				if err != nil {
+					return 0, err
+				}
 			}
 			return Calc(expression[:begin]+res+expression[end+1:], id)
 		}
 	}
 
 	if open > 0 {
-		jsonResult, _ := json.Marshal(structs.ResponseResult{id, "Скобка открылась, но так и не закрылась", 0})
-		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
-		return 0, errors.New("Скобка открылась, но так и не закрылась")
+		_, err = conn.Exec(`
+			UPDATE expressions
+			SET status = "error", result = 0
+			WHERE id = ?
+		`, fmt.Sprintf("%d", id))
+		if err != nil {
+			return 0, err
+		}
 	}
 	out, err := CalcExpression(expression)
 	if err != nil {
-		jsonResult, _ := json.Marshal(structs.ResponseResult{id, fmt.Sprintf("%s", err), 0})
-		os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
-		return 0, err
+		_, err = conn.Exec(`
+			UPDATE expressions
+			SET status = "error", result = 0
+			WHERE id = ?
+		`, fmt.Sprintf("%d", id))
+		if err != nil {
+			return 0, err
+		}
 	}
 	out1, _ := strconv.ParseFloat(out, 64)
-	jsonResult, _ := json.Marshal(structs.ResponseResult{id, "ok", out1})
-	os.WriteFile(fmt.Sprintf("database/%d.json", id), jsonResult, 0644)
+	_, err = conn.Exec(`
+			UPDATE expressions
+			SET status = "ok", result = ?
+			WHERE id = ?
+		`, fmt.Sprintf("%f", out1), fmt.Sprintf("%d", id))
+	if err != nil {
+		return 0, err
+	}
 	return out1, nil
 }
 
