@@ -43,7 +43,6 @@
    TIME_SUBTRACTION_MS=0        # задержка вычитания в мс
    TIME_MULTIPLICATIONS_MS=0    # задержка умножения в мс
    TIME_DIVISIONS_MS=0          # задержка деления в мс
-   JWT_SECRET=your_secret_key   # секретный ключ для JWT
    ```
 
 4. **Инициализация БД** (скрипт выполнится автоматически при старте):
